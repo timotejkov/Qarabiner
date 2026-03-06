@@ -53,22 +53,34 @@ class AgentBase(ABC):
         """Execute the agent's primary function."""
         ...
 
-    def _call_llm(self, user_message: str, temperature: float = 0.2) -> str:
+    def _call_llm(
+        self,
+        user_message: str,
+        temperature: float = 0.2,
+        timeout: int = 600,
+        max_retries: int = 3,
+    ) -> str:
         """
         Call the LLM with the agent's system prompt and a user message.
 
         Uses Python's built-in urllib — zero external dependencies.
+        Retries automatically on timeouts and transient errors (429, 500, 529)
+        with exponential backoff.
 
         Args:
             user_message: The user/input message to send.
             temperature: Sampling temperature (lower = more deterministic).
+            timeout: Per-request timeout in seconds (default 600 = 10 min).
+            max_retries: Maximum number of retry attempts.
 
         Returns:
             The LLM's text response.
 
         Raises:
-            RuntimeError: On API communication failure with descriptive error message.
+            RuntimeError: On API communication failure after all retries exhausted.
         """
+        import time
+
         logger.info(f"[{self.__class__.__name__}] Calling {self.model} ({len(user_message)} chars input)")
 
         payload = json.dumps({
@@ -79,42 +91,67 @@ class AgentBase(ABC):
             "messages": [{"role": "user", "content": user_message}],
         }).encode("utf-8")
 
-        req = urllib.request.Request(
-            ANTHROPIC_API_URL,
-            data=payload,
-            headers={
-                "Content-Type": "application/json",
-                "x-api-key": config.anthropic_api_key,
-                "anthropic-version": ANTHROPIC_VERSION,
-            },
-        )
-
-        try:
-            # 300s timeout — the Architect agent can take 2-3 min for complex strategies
-            with urllib.request.urlopen(req, timeout=300) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
-        except urllib.error.HTTPError as e:
-            error_body = e.read().decode("utf-8", errors="replace")[:500]
-            logger.error(
-                f"[{self.__class__.__name__}] API error {e.code}: {error_body}"
+        last_error = None
+        for attempt in range(1, max_retries + 1):
+            req = urllib.request.Request(
+                ANTHROPIC_API_URL,
+                data=payload,
+                headers={
+                    "Content-Type": "application/json",
+                    "x-api-key": config.anthropic_api_key,
+                    "anthropic-version": ANTHROPIC_VERSION,
+                },
             )
-            raise RuntimeError(
-                f"Anthropic API returned {e.code}: {error_body}"
-            ) from e
-        except urllib.error.URLError as e:
-            logger.error(f"[{self.__class__.__name__}] Connection error: {e.reason}")
-            raise RuntimeError(f"LLM API connection failed: {e.reason}") from e
-        except TimeoutError as e:
-            logger.error(f"[{self.__class__.__name__}] Request timed out after 300s")
-            raise RuntimeError("LLM API request timed out after 300 seconds") from e
 
-        text = data["content"][0]["text"]
-        usage = data.get("usage", {})
-        logger.info(
-            f"[{self.__class__.__name__}] Response: {len(text)} chars, "
-            f"usage: {usage.get('input_tokens', '?')}in/{usage.get('output_tokens', '?')}out"
-        )
-        return text
+            try:
+                with urllib.request.urlopen(req, timeout=timeout) as resp:
+                    data = json.loads(resp.read().decode("utf-8"))
+
+                text = data["content"][0]["text"]
+                usage = data.get("usage", {})
+                logger.info(
+                    f"[{self.__class__.__name__}] Response: {len(text)} chars, "
+                    f"usage: {usage.get('input_tokens', '?')}in/{usage.get('output_tokens', '?')}out"
+                )
+                return text
+
+            except urllib.error.HTTPError as e:
+                error_body = e.read().decode("utf-8", errors="replace")[:500]
+                last_error = RuntimeError(f"Anthropic API returned {e.code}: {error_body}")
+
+                # Retry on rate limit (429), server error (500), or overloaded (529)
+                if e.code in (429, 500, 529) and attempt < max_retries:
+                    # Check for Retry-After header
+                    retry_after = e.headers.get("retry-after")
+                    if retry_after:
+                        wait = min(int(retry_after), 60)
+                    else:
+                        wait = min(2 ** attempt * 5, 60)  # 10s, 20s, 40s capped at 60
+                    logger.warning(
+                        f"[{self.__class__.__name__}] HTTP {e.code} on attempt {attempt}/{max_retries}, "
+                        f"retrying in {wait}s..."
+                    )
+                    time.sleep(wait)
+                    continue
+
+                logger.error(f"[{self.__class__.__name__}] API error {e.code}: {error_body}")
+                raise last_error from e
+
+            except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as e:
+                last_error = RuntimeError(f"LLM API request failed: {e}")
+                if attempt < max_retries:
+                    wait = min(2 ** attempt * 5, 60)
+                    logger.warning(
+                        f"[{self.__class__.__name__}] {type(e).__name__} on attempt {attempt}/{max_retries}, "
+                        f"retrying in {wait}s..."
+                    )
+                    time.sleep(wait)
+                    continue
+
+                logger.error(f"[{self.__class__.__name__}] Failed after {max_retries} attempts: {e}")
+                raise last_error from e
+
+        raise last_error or RuntimeError("LLM call failed after all retries")
 
     def _call_llm_json(self, user_message: str, temperature: float = 0.1) -> Any:
         """

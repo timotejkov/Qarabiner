@@ -1,0 +1,100 @@
+2026-03-06 12:48:20,745 [src.standards.library] INFO: [StandardsLibrary] Loaded 272 sections from 32 standards
+2026-03-06 12:48:20,746 [src.standards.vectorstore] INFO: [VectorStore] ChromaDB not available, skipping index build
+2026-03-06 12:49:05,551 [src.agents.orchestrator] INFO: [Pipeline] Profiling system under test...
+2026-03-06 12:49:05,552 [src.agents.base] INFO: [ProfilerAgent] Calling claude-haiku-4-5-20251001 (372 chars input)
+2026-03-06 12:49:09,579 [src.agents.base] INFO: [ProfilerAgent] Response: 1375 chars, usage: 1136in/356out
+2026-03-06 12:49:09,581 [src.agents.profiler] INFO: [Profiler] Extracted profile: unknown, domain=general_software, safety=low, deployment=cloud, sensitivity=internal, risks=5
+2026-03-06 12:49:09,581 [src.agents.orchestrator] INFO: [Pipeline] Inferred config: domain=general_software, safety=low, deployment=cloud
+2026-03-06 12:49:09,581 [src.agents.orchestrator] INFO: [Pipeline] Retrieving relevant standards...
+2026-03-06 12:49:09,582 [src.agents.base] INFO: [ResearcherAgent] Calling claude-sonnet-4-5-20250929 (1498 chars input)
+2026-03-06 12:49:17,478 [src.agents.base] INFO: [ResearcherAgent] Response: 1529 chars, usage: 812in/373out
+2026-03-06 12:49:17,479 [src.agents.researcher] INFO: [Researcher] Search keywords: ['messaging application', 'chat system', 'real-time communication', 'user authentication', 'message delivery', 'data privacy', 'encryption', 'user identity management', 'scalability testing', 'performance testing', 'load testing', 'security testing', 'API testing', 'integration testing', 'end-to-end testing', 'user acceptance testing', 'non-functional requirements', 'availability', 'reliability', 'message persistence', 'concurrent users', 'response time', 'throughput']
+2026-03-06 12:49:17,479 [src.agents.researcher] INFO: [Researcher] Required families: ['ISO 29119', 'ISO 25010', 'ISTQB', 'OWASP', 'WCAG']
+2026-03-06 12:49:17,509 [src.agents.researcher] INFO: [Researcher] Retrieved 25 standard sections (semantic+keyword)
+2026-03-06 12:49:17,510 [src.agents.orchestrator] INFO: [Pipeline] Generating test strategy...
+2026-03-06 12:49:17,510 [src.agents.base] INFO: [ArchitectAgent] Calling claude-sonnet-4-5-20250929 (34890 chars input)
+2026-03-06 12:50:01,646 [src.agents.base] INFO: [ArchitectAgent] Response: 7469 chars, usage: 8320in/1980out
+2026-03-06 12:50:01,647 [src.agents.orchestrator] INFO: [Pipeline] Gap analysis complete — 10 questions generated
+2026-03-06 12:50:41,954 [src.agents.orchestrator] INFO: [Pipeline] Profiling system under test...
+2026-03-06 12:50:41,954 [src.agents.base] INFO: [ProfilerAgent] Calling claude-haiku-4-5-20251001 (372 chars input)
+2026-03-06 12:50:45,664 [src.agents.base] INFO: [ProfilerAgent] Response: 1402 chars, usage: 1136in/359out
+2026-03-06 12:50:45,666 [src.agents.profiler] INFO: [Profiler] Extracted profile: unknown, domain=general_software, safety=low, deployment=cloud, sensitivity=internal, risks=5
+2026-03-06 12:50:45,666 [src.agents.orchestrator] INFO: [Pipeline] Inferred config: domain=general_software, safety=low, deployment=cloud
+2026-03-06 12:50:45,667 [src.agents.orchestrator] INFO: [Pipeline] Retrieving relevant standards...
+2026-03-06 12:50:45,667 [src.agents.base] INFO: [ResearcherAgent] Calling claude-sonnet-4-5-20250929 (1525 chars input)
+2026-03-06 12:50:53,900 [src.agents.base] INFO: [ResearcherAgent] Response: 1473 chars, usage: 815in/374out
+2026-03-06 12:50:53,901 [src.agents.researcher] INFO: [Researcher] Search keywords: ['chat application', 'messaging system', 'real-time communication', 'user authentication', 'message delivery', 'data privacy', 'encryption', 'API security', 'scalability testing', 'performance testing', 'load testing', 'usability testing', 'mobile application', 'web application', 'user identity management', 'session management', 'rate limiting', 'injection attacks', 'XSS', 'CSRF', 'input validation', 'message persistence', 'cloud deployment', 'availability', 'reliability testing']
+2026-03-06 12:50:53,901 [src.agents.researcher] INFO: [Researcher] Required families: ['ISO 29119', 'ISO 25010', 'ISTQB', 'OWASP ASVS', 'WCAG']
+2026-03-06 12:50:53,932 [src.agents.researcher] INFO: [Researcher] Retrieved 25 standard sections (semantic+keyword)
+2026-03-06 12:50:53,932 [src.agents.orchestrator] INFO: [Pipeline] Generating test strategy...
+2026-03-06 12:50:53,932 [src.agents.base] INFO: [ArchitectAgent] Calling claude-sonnet-4-5-20250929 (41334 chars input)
+2026-03-06 12:55:54,002 [src.agents.base] ERROR: [ArchitectAgent] Request timed out after 300s
+2026-03-06 12:55:54,011 [src.app] ERROR: Pipeline error: Traceback (most recent call last):
+  File "/Users/timotejkovacic/Documents/TestAI/prototype/src/agents/base.py", line 94, in _call_llm
+    with urllib.request.urlopen(req, timeout=300) as resp:
+         ~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.7/Frameworks/Python.framework/Versions/3.13/lib/python3.13/urllib/request.py", line 189, in urlopen
+    return opener.open(url, data, timeout)
+           ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.7/Frameworks/Python.framework/Versions/3.13/lib/python3.13/urllib/request.py", line 489, in open
+    response = self._open(req, data)
+  File "/opt/homebrew/Cellar/python@3.13/3.13.7/Frameworks/Python.framework/Versions/3.13/lib/python3.13/urllib/request.py", line 506, in _open
+    result = self._call_chain(self.handle_open, protocol, protocol +
+                              '_open', req)
+  File "/opt/homebrew/Cellar/python@3.13/3.13.7/Frameworks/Python.framework/Versions/3.13/lib/python3.13/urllib/request.py", line 466, in _call_chain
+    result = func(*args)
+  File "/opt/homebrew/Cellar/python@3.13/3.13.7/Frameworks/Python.framework/Versions/3.13/lib/python3.13/urllib/request.py", line 1367, in https_open
+    return self.do_open(http.client.HTTPSConnection, req,
+           ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                        context=self._context)
+                        ^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.7/Frameworks/Python.framework/Versions/3.13/lib/python3.13/urllib/request.py", line 1323, in do_open
+    r = h.getresponse()
+  File "/opt/homebrew/Cellar/python@3.13/3.13.7/Frameworks/Python.framework/Versions/3.13/lib/python3.13/http/client.py", line 1430, in getresponse
+    response.begin()
+    ~~~~~~~~~~~~~~^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.7/Frameworks/Python.framework/Versions/3.13/lib/python3.13/http/client.py", line 331, in begin
+    version, status, reason = self._read_status()
+                              ~~~~~~~~~~~~~~~~~^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.7/Frameworks/Python.framework/Versions/3.13/lib/python3.13/http/client.py", line 292, in _read_status
+    line = str(self.fp.readline(_MAXLINE + 1), "iso-8859-1")
+               ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.7/Frameworks/Python.framework/Versions/3.13/lib/python3.13/socket.py", line 719, in readinto
+    return self._sock.recv_into(b)
+           ~~~~~~~~~~~~~~~~~~~~^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.7/Frameworks/Python.framework/Versions/3.13/lib/python3.13/ssl.py", line 1304, in recv_into
+    return self.read(nbytes, buffer)
+           ~~~~~~~~~^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.13/3.13.7/Frameworks/Python.framework/Versions/3.13/lib/python3.13/ssl.py", line 1138, in read
+    return self._sslobj.read(len, buffer)
+           ~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^
+TimeoutError: The read operation timed out
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/Users/timotejkovacic/Documents/TestAI/prototype/src/app.py", line 268, in answer_questions
+    result, validation, profile, standards = pipeline.generate(
+                                             ~~~~~~~~~~~~~~~~~^
+        prd_text=session.prd_text,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+        domain_config=session.domain_config,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        answered_questions=session.answered_questions,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/Users/timotejkovacic/Documents/TestAI/prototype/src/agents/orchestrator.py", line 120, in generate
+    result = self._architect.process(
+        prd_text=prd_text,
+    ...<3 lines>...
+        answered_questions=answered_questions,
+    )
+  File "/Users/timotejkovacic/Documents/TestAI/prototype/src/agents/architect.py", line 110, in process
+    result_data = self._call_llm_json(user_message, temperature=0.3)
+  File "/Users/timotejkovacic/Documents/TestAI/prototype/src/agents/base.py", line 135, in _call_llm_json
+    raw = self._call_llm(user_message, temperature=temperature)
+  File "/Users/timotejkovacic/Documents/TestAI/prototype/src/agents/base.py", line 109, in _call_llm
+    raise RuntimeError("LLM API request timed out after 300 seconds") from e
+RuntimeError: LLM API request timed out after 300 seconds
+

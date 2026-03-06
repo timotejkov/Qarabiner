@@ -26,13 +26,24 @@ class RetrievedStandards:
     standard_families: list[str]
     justification: str
 
-    def to_prompt_text(self) -> str:
-        """Format retrieved standards for injection into the Architect prompt."""
+    def to_prompt_text(self, max_sections: int = 15, max_chars_per_section: int = 800) -> str:
+        """Format retrieved standards for injection into the Architect prompt.
+
+        Caps the number of sections and truncates long content to keep
+        the Architect's input under ~20K chars and avoid timeouts.
+
+        Args:
+            max_sections: Maximum number of sections to include.
+            max_chars_per_section: Truncate section content beyond this length.
+        """
         lines = []
-        for sec in self.sections:
+        for sec in self.sections[:max_sections]:
+            content = sec.content
+            if len(content) > max_chars_per_section:
+                content = content[:max_chars_per_section].rsplit(" ", 1)[0] + "..."
             lines.append(
                 f"**{sec.standard_id} — {sec.title}** (Section {sec.section_key}):\n"
-                f"{sec.content}\n"
+                f"{content}\n"
             )
         return "\n".join(lines)
 
