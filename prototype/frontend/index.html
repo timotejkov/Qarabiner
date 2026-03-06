@@ -1,0 +1,1174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Qarabiner — Test Strategy Generator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.0.6/dist/purify.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background-color: #f9fafb;
+        }
+
+        .sidebar {
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            color: white;
+        }
+
+        .step-indicator {
+            display: flex;
+            align-items: center;
+            padding: 1rem;
+            margin: 0.5rem 0;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.875rem;
+        }
+
+        .step-indicator.active {
+            background-color: rgba(37, 99, 235, 0.2);
+            border-left: 3px solid #2563eb;
+            padding-left: calc(1rem - 3px);
+        }
+
+        .step-indicator.completed {
+            opacity: 0.7;
+        }
+
+        .step-circle {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 2rem;
+            height: 2rem;
+            border-radius: 50%;
+            background-color: rgba(255, 255, 255, 0.1);
+            margin-right: 0.75rem;
+            font-weight: 600;
+            font-size: 0.875rem;
+        }
+
+        .step-indicator.active .step-circle {
+            background-color: #2563eb;
+        }
+
+        .step-indicator.completed .step-circle {
+            background-color: #10b981;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 1rem;
+            height: 1rem;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-top-color: #2563eb;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .progress-step {
+            display: flex;
+            align-items: center;
+            padding: 0.5rem 0;
+            font-size: 0.875rem;
+            color: #6b7280;
+        }
+
+        .progress-step.active {
+            color: #2563eb;
+            font-weight: 500;
+        }
+
+        .progress-step.completed {
+            color: #10b981;
+        }
+
+        .progress-step.completed::before {
+            content: "✓";
+            display: inline-block;
+            width: 1.25rem;
+            height: 1.25rem;
+            background-color: #10b981;
+            color: white;
+            border-radius: 50%;
+            text-align: center;
+            line-height: 1.25rem;
+            margin-right: 0.5rem;
+            font-size: 0.75rem;
+        }
+
+        .progress-step.active::before {
+            content: "";
+            display: inline-block;
+            width: 0.5rem;
+            height: 0.5rem;
+            background-color: #2563eb;
+            border-radius: 50%;
+            margin-right: 0.75rem;
+        }
+
+        .progress-step:not(.active):not(.completed)::before {
+            content: "";
+            display: inline-block;
+            width: 0.5rem;
+            height: 0.5rem;
+            background-color: #d1d5db;
+            border-radius: 50%;
+            margin-right: 0.75rem;
+        }
+
+        .loading-overlay {
+            position: absolute;
+            inset: 0;
+            background: rgba(255, 255, 255, 0.8);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            border-radius: 0.5rem;
+        }
+
+        .loading-overlay .spinner {
+            width: 2.5rem;
+            height: 2.5rem;
+            border-width: 3px;
+            margin-bottom: 1rem;
+        }
+
+        .loading-overlay p {
+            color: #2563eb;
+            font-weight: 500;
+            font-size: 1rem;
+        }
+
+        .btn-primary {
+            background-color: #2563eb;
+            color: white;
+            padding: 0.625rem 1.5rem;
+            border-radius: 0.5rem;
+            border: none;
+            cursor: pointer;
+            font-weight: 500;
+            font-size: 0.875rem;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background-color: #1d4ed8;
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+        }
+
+        .btn-primary:disabled {
+            background-color: #d1d5db;
+            cursor: not-allowed;
+        }
+
+        .btn-secondary {
+            background-color: white;
+            color: #374151;
+            border: 1px solid #d1d5db;
+            padding: 0.625rem 1.5rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            font-weight: 500;
+            font-size: 0.875rem;
+            transition: all 0.3s ease;
+        }
+
+        .btn-secondary:hover {
+            background-color: #f3f4f6;
+            border-color: #9ca3af;
+        }
+
+        .dropzone {
+            border: 2px dashed #d1d5db;
+            border-radius: 0.75rem;
+            padding: 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background-color: #f9fafb;
+        }
+
+        .dropzone:hover {
+            border-color: #2563eb;
+            background-color: #eff6ff;
+        }
+
+        .dropzone.dragover {
+            border-color: #2563eb;
+            background-color: #eff6ff;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-label {
+            display: block;
+            font-weight: 500;
+            color: #111827;
+            margin-bottom: 0.5rem;
+            font-size: 0.875rem;
+        }
+
+        .form-input,
+        .form-textarea,
+        .form-select {
+            width: 100%;
+            padding: 0.625rem 0.75rem;
+            border: 1px solid #d1d5db;
+            border-radius: 0.5rem;
+            font-family: inherit;
+            font-size: 0.875rem;
+            transition: all 0.3s ease;
+        }
+
+        .form-input:focus,
+        .form-textarea:focus,
+        .form-select:focus {
+            outline: none;
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+        }
+
+        .form-textarea {
+            resize: vertical;
+            min-height: 120px;
+            font-family: 'Monaco', 'Menlo', monospace;
+        }
+
+        .question-card {
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.5rem;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .question-card h3 {
+            color: #111827;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            font-size: 1rem;
+        }
+
+        .reference-label {
+            display: inline-block;
+            background-color: #f3f4f6;
+            color: #6b7280;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
+            font-size: 0.75rem;
+            margin-bottom: 0.75rem;
+            font-weight: 500;
+        }
+
+        .example-box {
+            background-color: #f9fafb;
+            border-left: 3px solid #d1d5db;
+            padding: 0.75rem;
+            margin: 0.75rem 0;
+            border-radius: 0.25rem;
+            font-size: 0.85rem;
+            color: #6b7280;
+        }
+
+        .example-box strong {
+            color: #4b5563;
+        }
+
+        .markdown-content {
+            line-height: 1.8;
+            color: #111827;
+        }
+
+        .markdown-content h1 {
+            font-size: 1.875rem;
+            font-weight: 700;
+            margin: 1.5rem 0 1rem;
+            border-bottom: 2px solid #e5e7eb;
+            padding-bottom: 0.5rem;
+        }
+
+        .markdown-content h2 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin: 1.25rem 0 0.75rem;
+            color: #1f2937;
+        }
+
+        .markdown-content h3 {
+            font-size: 1.125rem;
+            font-weight: 600;
+            margin: 1rem 0 0.5rem;
+            color: #374151;
+        }
+
+        .markdown-content p {
+            margin: 0.75rem 0;
+        }
+
+        .markdown-content ul, .markdown-content ol {
+            margin: 1rem 0;
+            padding-left: 2rem;
+        }
+
+        .markdown-content li {
+            margin: 0.5rem 0;
+        }
+
+        .markdown-content code {
+            background-color: #f3f4f6;
+            padding: 0.125rem 0.375rem;
+            border-radius: 0.25rem;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 0.85em;
+            color: #d946ef;
+        }
+
+        .markdown-content pre {
+            background-color: #1f2937;
+            color: #e5e7eb;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            overflow-x: auto;
+            margin: 1rem 0;
+        }
+
+        .markdown-content pre code {
+            background: none;
+            color: #e5e7eb;
+            padding: 0;
+        }
+
+        .markdown-content blockquote {
+            border-left: 4px solid #2563eb;
+            padding-left: 1rem;
+            margin: 1rem 0;
+            color: #6b7280;
+        }
+
+        .validation-badge {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            margin: 0.5rem 0;
+        }
+
+        .validation-badge.passed {
+            background-color: #dcfce7;
+            color: #166534;
+        }
+
+        .validation-badge.failed {
+            background-color: #fee2e2;
+            color: #991b1b;
+        }
+
+        .score-display {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 200px;
+            height: 200px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+            color: white;
+            font-size: 4rem;
+            font-weight: 700;
+            text-align: center;
+        }
+
+        .score-label {
+            color: white;
+            font-size: 1rem;
+            font-weight: 500;
+            margin-top: 1rem;
+        }
+
+        .dimension-score {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1rem;
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 0.5rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .dimension-score-name {
+            font-weight: 500;
+            color: #374151;
+        }
+
+        .dimension-score-value {
+            font-weight: 700;
+            color: #2563eb;
+            font-size: 1.125rem;
+        }
+
+        .strength-item, .weakness-item {
+            padding: 0.75rem 1rem;
+            border-radius: 0.5rem;
+            margin-bottom: 0.5rem;
+            font-size: 0.875rem;
+            line-height: 1.5;
+        }
+
+        .strength-item {
+            background-color: #f0fdf4;
+            border-left: 3px solid #10b981;
+            color: #166534;
+        }
+
+        .weakness-item {
+            background-color: #fef2f2;
+            border-left: 3px solid #ef4444;
+            color: #991b1b;
+        }
+
+        .error-message {
+            background-color: #fee2e2;
+            border: 1px solid #fecaca;
+            color: #991b1b;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .success-message {
+            background-color: #dcfce7;
+            border: 1px solid #bbf7d0;
+            color: #166534;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .fade-in {
+            animation: fadeIn 0.3s ease-in;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+
+        .loading-skeleton {
+            background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+            background-size: 200% 100%;
+            animation: loading 1.5s infinite;
+        }
+
+        @keyframes loading {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+    </style>
+</head>
+<body>
+    <div class="flex h-screen bg-gray-50">
+        <!-- Sidebar -->
+        <div class="sidebar w-64 overflow-y-auto">
+            <div class="p-6 border-b border-gray-700">
+                <h1 class="text-xl font-bold">Qarabiner</h1>
+                <p class="text-gray-400 text-sm mt-1">Test Strategy Engine</p>
+            </div>
+
+            <div class="p-4">
+                <div class="mb-2 text-gray-400 text-xs font-semibold tracking-wide">WORKFLOW</div>
+
+                <div class="step-indicator active" data-step="1">
+                    <div class="step-circle">1</div>
+                    <div>Upload & Configure</div>
+                </div>
+
+                <div class="step-indicator" data-step="2">
+                    <div class="step-circle">2</div>
+                    <div>Answer Questions</div>
+                </div>
+
+                <div class="step-indicator" data-step="3">
+                    <div class="step-circle">3</div>
+                    <div>Review Strategy</div>
+                </div>
+
+                <div class="step-indicator" data-step="4">
+                    <div class="step-circle">4</div>
+                    <div>Peer Review</div>
+                </div>
+            </div>
+
+            <!-- Progress during generation -->
+            <div id="progress-container" class="hidden p-4 border-t border-gray-700">
+                <div class="text-gray-400 text-xs font-semibold tracking-wide mb-3">GENERATION PROGRESS</div>
+                <div id="progress-steps" class="space-y-2"></div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="flex-1 overflow-auto">
+            <div class="max-w-6xl mx-auto p-8">
+                <!-- Step 1: Upload & Configure -->
+                <div id="step1" class="fade-in">
+                    <h2 class="text-3xl font-bold text-gray-900 mb-2">Create QA Strategy</h2>
+                    <p class="text-gray-600 mb-8">Paste your PRD and configure project parameters to generate a comprehensive quality assurance strategy.</p>
+
+                    <div id="error-message" class="hidden"></div>
+
+                    <form id="configForm" class="space-y-6">
+                        <!-- PRD Upload -->
+                        <div class="form-group">
+                            <label class="form-label">Product Requirements Document (PRD)</label>
+                            <div id="dropzone" class="dropzone">
+                                <svg class="mx-auto mb-2 text-gray-400" width="48" height="48" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 16v-4m0-4v.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                                <p class="text-gray-600 text-sm font-medium mb-1">Drop your .txt or .md file here, or paste PRD text below</p>
+                                <p class="text-gray-400 text-xs">Max file size: 10MB</p>
+                            </div>
+                            <textarea id="prdText" class="form-textarea mt-3" placeholder="Paste your PRD content here..."></textarea>
+                        </div>
+
+                        <!-- Domain Selection -->
+                        <div class="grid grid-cols-2 gap-6">
+                            <div class="form-group">
+                                <label class="form-label">Domain</label>
+                                <select id="domain" class="form-select" required>
+                                    <option value="">Select a domain...</option>
+                                    <option value="general_software">General Software</option>
+                                    <option value="medical_device">Medical Device</option>
+                                    <option value="automotive">Automotive</option>
+                                    <option value="aerospace">Aerospace</option>
+                                    <option value="financial">Financial Services</option>
+                                    <option value="embedded_iot">Embedded/IoT</option>
+                                    <option value="telecom">Telecommunications</option>
+                                    <option value="railway">Railway Systems</option>
+                                    <option value="nuclear">Nuclear Power</option>
+                                    <option value="gaming_gambling">Gaming & Gambling</option>
+                                    <option value="government">Government</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Safety Level</label>
+                                <select id="safetyLevel" class="form-select" required>
+                                    <option value="">Select safety level...</option>
+                                    <option value="none">None</option>
+                                    <option value="low">Low</option>
+                                    <option value="medium">Medium</option>
+                                    <option value="high">High</option>
+                                    <option value="critical">Critical</option>
+                                    <optgroup label="ASIL Levels">
+                                        <option value="asil_a">ASIL A</option>
+                                        <option value="asil_b">ASIL B</option>
+                                        <option value="asil_c">ASIL C</option>
+                                        <option value="asil_d">ASIL D</option>
+                                    </optgroup>
+                                    <optgroup label="SIL Levels">
+                                        <option value="sil_1">SIL 1</option>
+                                        <option value="sil_2">SIL 2</option>
+                                        <option value="sil_3">SIL 3</option>
+                                        <option value="sil_4">SIL 4</option>
+                                    </optgroup>
+                                    <optgroup label="DAL Levels">
+                                        <option value="dal_a">DAL A</option>
+                                        <option value="dal_b">DAL B</option>
+                                        <option value="dal_c">DAL C</option>
+                                        <option value="dal_d">DAL D</option>
+                                        <option value="dal_e">DAL E</option>
+                                    </optgroup>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- Regulatory Frameworks -->
+                        <div class="form-group">
+                            <label class="form-label">Regulatory Frameworks (comma-separated)</label>
+                            <input type="text" id="regulatoryFrameworks" class="form-input" placeholder="e.g., ISO 26262, IEC 61508, DO-178C">
+                        </div>
+
+                        <!-- Deployment Environment -->
+                        <div class="form-group">
+                            <label class="form-label">Deployment Environment</label>
+                            <select id="deploymentEnv" class="form-select" required>
+                                <option value="">Select environment...</option>
+                                <option value="cloud">Cloud</option>
+                                <option value="on-premise">On-Premise</option>
+                                <option value="hybrid">Hybrid</option>
+                                <option value="edge">Edge Computing</option>
+                            </select>
+                        </div>
+
+                        <!-- Submit Button -->
+                        <div class="pt-4">
+                            <button type="submit" class="btn-primary" id="generateBtn">
+                                <span id="generateBtnText">Generate Strategy</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Step 2: Q&A Panel -->
+                <div id="step2" class="hidden fade-in" style="position: relative;">
+                    <div id="answerOverlay" class="loading-overlay hidden">
+                        <div class="spinner"></div>
+                        <p>Generating your strategy...</p>
+                    </div>
+                    <h2 class="text-3xl font-bold text-gray-900 mb-2">Answer Questions</h2>
+                    <p class="text-gray-600 mb-8">Please answer the following questions to help us generate a tailored strategy.</p>
+
+                    <form id="answerForm" class="space-y-6">
+                        <div id="questionsContainer"></div>
+                        <div class="pt-4">
+                            <button type="submit" class="btn-primary" id="submitAnswersBtn">
+                                <span id="submitAnswersBtnText">Submit Answers</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Step 3: Strategy Viewer -->
+                <div id="step3" class="hidden fade-in">
+                    <div class="flex items-center justify-between mb-6">
+                        <h2 class="text-3xl font-bold text-gray-900">Generated Strategy</h2>
+                        <div id="validationResult"></div>
+                    </div>
+
+                    <div id="strategyContent" class="bg-white rounded-lg border border-gray-200 p-8 mb-6 markdown-content"></div>
+
+                    <div class="grid grid-cols-3 gap-4">
+                        <button class="btn-primary" id="peerReviewBtn">Request Peer Review</button>
+                        <button class="btn-secondary" id="exportBtn">Export as Markdown</button>
+                        <button class="btn-secondary" id="startNewBtn">Start New</button>
+                    </div>
+                </div>
+
+                <!-- Step 4: Peer Review Panel -->
+                <div id="step4" class="hidden fade-in">
+                    <h2 class="text-3xl font-bold text-gray-900 mb-8">Peer Review Results</h2>
+
+                    <div class="grid grid-cols-2 gap-8 mb-8">
+                        <div class="flex flex-col items-center justify-center">
+                            <div class="score-display" id="overallScore"></div>
+                            <div class="score-label">Overall Grade</div>
+                        </div>
+
+                        <div>
+                            <h3 class="text-lg font-bold text-gray-900 mb-4">Dimension Scores</h3>
+                            <div id="dimensionScores"></div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-8">
+                        <div>
+                            <h3 class="text-lg font-bold text-gray-900 mb-4">Strengths</h3>
+                            <div id="strengthsList"></div>
+                        </div>
+
+                        <div>
+                            <h3 class="text-lg font-bold text-gray-900 mb-4">Areas for Improvement</h3>
+                            <div id="weaknessList"></div>
+                        </div>
+                    </div>
+
+                    <div class="pt-8">
+                        <button class="btn-secondary" id="startNewBtn2">Start New</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State management
+        let appState = {
+            currentStep: 1,
+            sessionId: null,
+            questions: [],
+            strategy: null,
+            prdText: '',
+            config: {}
+        };
+
+        // API base URL (adjust if needed)
+        const API_BASE = '/api';
+
+        // Initialize app
+        document.addEventListener('DOMContentLoaded', () => {
+            setupEventListeners();
+        });
+
+        function setupEventListeners() {
+            // Dropzone
+            const dropzone = document.getElementById('dropzone');
+            const prdText = document.getElementById('prdText');
+
+            dropzone.addEventListener('click', () => {
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.accept = '.txt,.md';
+                input.addEventListener('change', handleFileUpload);
+                input.click();
+            });
+
+            dropzone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dropzone.classList.add('dragover');
+            });
+
+            dropzone.addEventListener('dragleave', () => {
+                dropzone.classList.remove('dragover');
+            });
+
+            dropzone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dropzone.classList.remove('dragover');
+                if (e.dataTransfer.files.length > 0) {
+                    handleFileUpload({ target: { files: e.dataTransfer.files } });
+                }
+            });
+
+            // Form submission
+            document.getElementById('configForm').addEventListener('submit', handleGenerateStrategy);
+            document.getElementById('answerForm').addEventListener('submit', handleSubmitAnswers);
+            document.getElementById('peerReviewBtn').addEventListener('click', handlePeerReview);
+            document.getElementById('exportBtn').addEventListener('click', handleExport);
+            document.getElementById('startNewBtn').addEventListener('click', resetApp);
+            document.getElementById('startNewBtn2').addEventListener('click', resetApp);
+
+            // Step indicators
+            document.querySelectorAll('.step-indicator').forEach(indicator => {
+                indicator.addEventListener('click', () => {
+                    const step = parseInt(indicator.dataset.step);
+                    if (step <= appState.currentStep) {
+                        navigateToStep(step);
+                    }
+                });
+            });
+        }
+
+        function handleFileUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                document.getElementById('prdText').value = e.target.result;
+            };
+            reader.onerror = () => {
+                showError('Failed to read file. Please try again.');
+            };
+            reader.readAsText(file);
+        }
+
+        async function handleGenerateStrategy(e) {
+            e.preventDefault();
+            clearError();
+
+            const prdText = document.getElementById('prdText').value.trim();
+            const domain = document.getElementById('domain').value;
+            const safetyLevel = document.getElementById('safetyLevel').value;
+            const regulatoryFrameworks = document.getElementById('regulatoryFrameworks').value;
+            const deploymentEnv = document.getElementById('deploymentEnv').value;
+
+            if (!prdText) {
+                showError('Please enter or upload a PRD.');
+                return;
+            }
+            if (!domain || !safetyLevel || !deploymentEnv) {
+                showError('Please fill in all required fields.');
+                return;
+            }
+
+            appState.prdText = prdText;
+            appState.config = {
+                prd_text: prdText,
+                domain,
+                safety_level: safetyLevel,
+                regulatory_frameworks: regulatoryFrameworks
+                    ? regulatoryFrameworks.split(',').map(s => s.trim()).filter(Boolean)
+                    : [],
+                deployment_environment: deploymentEnv
+            };
+
+            setLoadingState(true);
+            showProgressContainer();
+
+            try {
+                const response = await fetch(`${API_BASE}/strategy/generate`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(appState.config)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`API error: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                appState.sessionId = data.session_id;
+                appState.questions = data.questions || [];
+
+                setLoadingState(false);
+                hideProgressContainer();
+
+                if (appState.questions.length > 0) {
+                    displayQuestions();
+                    navigateToStep(2);
+                } else {
+                    appState.strategy = data.strategy_markdown;
+                    appState.validation = data.validation;
+                    displayStrategy();
+                    navigateToStep(3);
+                }
+            } catch (error) {
+                setLoadingState(false);
+                hideProgressContainer();
+                showError(`Failed to generate strategy: ${error.message}`);
+            }
+        }
+
+        async function handleSubmitAnswers(e) {
+            e.preventDefault();
+            clearError();
+
+            const answers = {};
+            appState.questions.forEach((question, index) => {
+                const input = document.getElementById(`answer-${index}`);
+                if (input) {
+                    answers[question.question] = input.value;
+                }
+            });
+
+            // Show loading overlay + sidebar progress + button state
+            document.getElementById('answerOverlay').classList.remove('hidden');
+            document.getElementById('submitAnswersBtn').disabled = true;
+            document.getElementById('submitAnswersBtnText').innerHTML = '<span class="spinner" style="width:1rem;height:1rem;display:inline-block;vertical-align:middle;margin-right:0.5rem;"></span> Generating...';
+            showProgressContainer();
+
+            try {
+                const response = await fetch(`${API_BASE}/strategy/answer`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        session_id: appState.sessionId,
+                        answers
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`API error: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                appState.strategy = data.strategy_markdown;
+                appState.validation = data.validation;
+
+                document.getElementById('answerOverlay').classList.add('hidden');
+                document.getElementById('submitAnswersBtn').disabled = false;
+                document.getElementById('submitAnswersBtnText').textContent = 'Submit Answers';
+                hideProgressContainer();
+                displayStrategy();
+                navigateToStep(3);
+            } catch (error) {
+                document.getElementById('answerOverlay').classList.add('hidden');
+                document.getElementById('submitAnswersBtn').disabled = false;
+                document.getElementById('submitAnswersBtnText').textContent = 'Submit Answers';
+                hideProgressContainer();
+                showError(`Failed to submit answers: ${error.message}`);
+            }
+        }
+
+        async function handlePeerReview() {
+            setLoadingState(true);
+
+            try {
+                const response = await fetch(`${API_BASE}/strategy/review`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        session_id: appState.sessionId
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`API error: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                displayPeerReview(data);
+                setLoadingState(false);
+                navigateToStep(4);
+            } catch (error) {
+                setLoadingState(false);
+                showError(`Failed to request peer review: ${error.message}`);
+            }
+        }
+
+        async function handleExport() {
+            try {
+                const response = await fetch(`${API_BASE}/strategy/export/${appState.sessionId}`);
+                if (!response.ok) {
+                    throw new Error('Failed to export strategy');
+                }
+
+                const blob = await response.blob();
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `qa-strategy-${appState.sessionId}.md`;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+            } catch (error) {
+                showError(`Failed to export strategy: ${error.message}`);
+            }
+        }
+
+        function displayQuestions() {
+            const container = document.getElementById('questionsContainer');
+            container.innerHTML = '';
+
+            appState.questions.forEach((question, index) => {
+                const card = document.createElement('div');
+                card.className = 'question-card';
+
+                // Create h3 for question (safe - textContent only)
+                const h3 = document.createElement('h3');
+                h3.textContent = question.question;
+                card.appendChild(h3);
+
+                // Create reference label (safe - textContent only)
+                const refLabel = document.createElement('div');
+                refLabel.className = 'reference-label';
+                refLabel.textContent = question.standard_reference;
+                card.appendChild(refLabel);
+
+                // Create example box if present (safe - textContent only)
+                if (question.example_answer) {
+                    const exampleBox = document.createElement('div');
+                    exampleBox.className = 'example-box';
+                    const strongLabel = document.createElement('strong');
+                    strongLabel.textContent = 'Example: ';
+                    exampleBox.appendChild(strongLabel);
+                    exampleBox.appendChild(document.createTextNode(question.example_answer));
+                    card.appendChild(exampleBox);
+                }
+
+                // Create textarea
+                const textarea = document.createElement('textarea');
+                textarea.id = `answer-${index}`;
+                textarea.className = 'form-textarea mt-3';
+                textarea.placeholder = 'Enter your answer...';
+                card.appendChild(textarea);
+
+                container.appendChild(card);
+            });
+        }
+
+        function displayStrategy() {
+            if (!appState.strategy) return;
+
+            // Render markdown content with DOMPurify sanitization
+            const strategyContent = document.getElementById('strategyContent');
+            const rawHtml = marked.parse(appState.strategy);
+            const cleanHtml = DOMPurify.sanitize(rawHtml);
+            strategyContent.innerHTML = cleanHtml;
+
+            // Display validation result if available
+            if (appState.validation) {
+                const validationResult = document.getElementById('validationResult');
+                const v = appState.validation;
+                const passed = v.status === 'passed';
+                const citationPct = Math.round((v.citation_accuracy || 0) * 100);
+                const badge = document.createElement('div');
+                badge.className = `validation-badge ${passed ? 'passed' : 'failed'}`;
+                const statusText = document.createTextNode(
+                    `${passed ? '✓ Validation Passed' : '✗ Validation Failed'} — ${citationPct}% Citation Accuracy, ${v.issues ? v.issues.length : 0} issues`
+                );
+                badge.appendChild(statusText);
+                validationResult.innerHTML = '';
+                validationResult.appendChild(badge);
+            }
+        }
+
+        function displayPeerReview(reviewData) {
+            // Overall score
+            const scoreDisplay = document.getElementById('overallScore');
+            const grade = reviewData.overall_grade || 'A';
+            scoreDisplay.textContent = grade;
+
+            // Dimension scores
+            const dimensionScores = document.getElementById('dimensionScores');
+            dimensionScores.innerHTML = '';
+            if (reviewData.dimension_scores) {
+                Object.entries(reviewData.dimension_scores).forEach(([dimension, score]) => {
+                    const div = document.createElement('div');
+                    div.className = 'dimension-score';
+                    div.innerHTML = `
+                        <span class="dimension-score-name">${dimension}</span>
+                        <span class="dimension-score-value">${score}%</span>
+                    `;
+                    dimensionScores.appendChild(div);
+                });
+            }
+
+            // Strengths
+            const strengthsList = document.getElementById('strengthsList');
+            strengthsList.innerHTML = '';
+            if (reviewData.strengths) {
+                reviewData.strengths.forEach(strength => {
+                    const div = document.createElement('div');
+                    div.className = 'strength-item';
+                    div.textContent = strength;
+                    strengthsList.appendChild(div);
+                });
+            }
+
+            // Weaknesses
+            const weaknessList = document.getElementById('weaknessList');
+            weaknessList.innerHTML = '';
+            if (reviewData.weaknesses) {
+                reviewData.weaknesses.forEach(weakness => {
+                    const div = document.createElement('div');
+                    div.className = 'weakness-item';
+                    div.textContent = weakness;
+                    weaknessList.appendChild(div);
+                });
+            }
+        }
+
+        function navigateToStep(step) {
+            // Update UI
+            document.querySelectorAll('[id^="step"]').forEach(el => {
+                if (el.id.match(/^step\d+$/)) {
+                    el.classList.add('hidden');
+                }
+            });
+
+            document.getElementById(`step${step}`).classList.remove('hidden');
+
+            // Update sidebar
+            document.querySelectorAll('.step-indicator').forEach(indicator => {
+                const indicatorStep = parseInt(indicator.dataset.step);
+                indicator.classList.remove('active', 'completed');
+
+                if (indicatorStep === step) {
+                    indicator.classList.add('active');
+                } else if (indicatorStep < step) {
+                    indicator.classList.add('completed');
+                }
+            });
+
+            appState.currentStep = step;
+        }
+
+        function showProgressContainer() {
+            const container = document.getElementById('progress-container');
+            container.classList.remove('hidden');
+
+            const stepsContainer = document.getElementById('progress-steps');
+            stepsContainer.innerHTML = `
+                <div class="progress-step active">
+                    <span class="spinner" style="margin-right: 0.5rem;"></span>
+                    Profiling
+                </div>
+                <div class="progress-step">Researching</div>
+                <div class="progress-step">Generating</div>
+                <div class="progress-step">Validating</div>
+            `;
+
+            // Simulate progress
+            let currentStep = 0;
+            const steps = ['Profiling', 'Researching', 'Generating', 'Validating'];
+            const interval = setInterval(() => {
+                if (currentStep < steps.length - 1) {
+                    const stepElements = document.querySelectorAll('.progress-step');
+                    stepElements[currentStep].classList.remove('active');
+                    stepElements[currentStep].classList.add('completed');
+                    currentStep++;
+                    if (currentStep < stepElements.length) {
+                        stepElements[currentStep].classList.add('active');
+                    }
+                } else {
+                    clearInterval(interval);
+                }
+            }, 5000);
+        }
+
+        function hideProgressContainer() {
+            document.getElementById('progress-container').classList.add('hidden');
+        }
+
+        function setLoadingState(loading) {
+            const btn = document.getElementById('generateBtn') || document.getElementById('submitAnswersBtn');
+            if (btn) {
+                btn.disabled = loading;
+                if (loading && btn.id === 'generateBtn') {
+                    document.getElementById('generateBtnText').innerHTML = '<span class="spinner"></span> Generating...';
+                } else if (!loading && btn.id === 'generateBtn') {
+                    document.getElementById('generateBtnText').textContent = 'Generate Strategy';
+                }
+            }
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('error-message');
+            errorDiv.innerHTML = '';  // Clear previous errors
+            const errorMsg = document.createElement('div');
+            errorMsg.className = 'error-message';
+            errorMsg.textContent = message;
+            errorDiv.appendChild(errorMsg);
+            errorDiv.classList.remove('hidden');
+        }
+
+        function clearError() {
+            document.getElementById('error-message').classList.add('hidden');
+        }
+
+        function resetApp() {
+            appState = {
+                currentStep: 1,
+                sessionId: null,
+                questions: [],
+                strategy: null,
+                prdText: '',
+                config: {}
+            };
+            document.getElementById('configForm').reset();
+            navigateToStep(1);
+            clearError();
+        }
+    </script>
+</body>
+</html>
