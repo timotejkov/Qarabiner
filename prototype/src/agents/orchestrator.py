@@ -13,7 +13,7 @@ from src.agents.researcher import ResearcherAgent, RetrievedStandards
 from src.agents.architect import ArchitectAgent
 from src.agents.critic import CriticAgent
 from src.config import config
-from src.models.domain_config import DomainConfig
+from src.models.domain_config import DomainConfig, IndustryDomain, SafetyLevel
 from src.models.profile import SystemProfile
 from src.models.strategy import (
     PipelineResult,
@@ -42,10 +42,39 @@ class PipelineOrchestrator:
         self._architect = ArchitectAgent()
         self._critic = CriticAgent()
 
+    @staticmethod
+    def _build_domain_config_from_profile(profile: SystemProfile) -> DomainConfig:
+        """Build a DomainConfig from the Profiler's inferred values."""
+        # Map inferred domain string to enum
+        domain = IndustryDomain.GENERAL_SOFTWARE
+        if profile.inferred_domain:
+            try:
+                domain = IndustryDomain(profile.inferred_domain)
+            except ValueError:
+                logger.warning(f"Unknown inferred domain: {profile.inferred_domain}, using general_software")
+
+        # Map inferred safety level string to enum
+        safety = SafetyLevel.NONE
+        if profile.inferred_safety_level:
+            try:
+                safety = SafetyLevel(profile.inferred_safety_level)
+            except ValueError:
+                logger.warning(f"Unknown inferred safety level: {profile.inferred_safety_level}, using none")
+
+        deployment = profile.inferred_deployment_environment or "cloud"
+        frameworks = profile.inferred_regulatory_frameworks or []
+
+        return DomainConfig(
+            domain=domain,
+            safety_level=safety,
+            regulatory_frameworks=frameworks,
+            deployment_environment=deployment,
+        )
+
     def generate(
         self,
         prd_text: str,
-        domain_config: DomainConfig,
+        domain_config: DomainConfig | None = None,
         answered_questions: dict[str, str] | None = None,
         on_status: callable = None,
     ) -> tuple[PipelineResult, ValidationResult | None, SystemProfile | None, RetrievedStandards | None]:
@@ -54,7 +83,8 @@ class PipelineOrchestrator:
 
         Args:
             prd_text: Raw PRD or system description.
-            domain_config: User's domain and regulatory configuration.
+            domain_config: Optional domain configuration. If None or default,
+                          the Profiler infers everything from the PRD.
             answered_questions: Previously answered clarifying questions.
             on_status: Optional callback for progress updates.
 
@@ -70,9 +100,16 @@ class PipelineOrchestrator:
             if on_status:
                 on_status(msg)
 
-        # Step 1: Profile
+        # Step 1: Profile — infers domain, safety, deployment from PRD
         status("Profiling system under test...")
         profile = self._profiler.process(prd_text, domain_config)
+
+        # Build DomainConfig from inferred values if not explicitly provided
+        if domain_config is None or domain_config.domain == IndustryDomain.GENERAL_SOFTWARE:
+            domain_config = self._build_domain_config_from_profile(profile)
+            logger.info(f"[Pipeline] Inferred config: domain={domain_config.domain.value}, "
+                        f"safety={domain_config.safety_level.value}, "
+                        f"deployment={domain_config.deployment_environment}")
 
         # Step 2: Research
         status("Retrieving relevant standards...")

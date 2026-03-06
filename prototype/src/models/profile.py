@@ -29,8 +29,11 @@ class SystemProfile(BaseModel):
     identified_risks: list[str] = Field(default_factory=list, description="Key risks identified from the PRD")
     data_types_handled: list[str] = Field(default_factory=list, description="Types of data: PII, financial, medical, public")
 
-    # Business context
-    inferred_domain: Optional[str] = Field(default=None, description="Domain inferred from PRD content (may differ from user-selected)")
+    # Business context (inferred by Profiler)
+    inferred_domain: Optional[str] = Field(default=None, description="Domain inferred from PRD content (e.g., medical_device, financial, automotive)")
+    inferred_safety_level: Optional[str] = Field(default=None, description="Safety level inferred from PRD (none, low, medium, high, critical)")
+    inferred_deployment_environment: Optional[str] = Field(default=None, description="Deployment environment inferred from PRD (cloud, on-premise, hybrid, edge)")
+    inferred_regulatory_frameworks: list[str] = Field(default_factory=list, description="Regulatory frameworks inferred from PRD (e.g., HIPAA, GDPR)")
     user_roles: list[str] = Field(default_factory=list, description="User roles identified (e.g., admin, end-user, API consumer)")
     integration_points: list[str] = Field(default_factory=list, description="External integrations (e.g., LDAP, payment gateway, email)")
 

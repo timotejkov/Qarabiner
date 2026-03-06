@@ -508,7 +508,7 @@
 
                 <div class="step-indicator active" data-step="1">
                     <div class="step-circle">1</div>
-                    <div>Upload & Configure</div>
+                    <div>Upload PRD</div>
                 </div>
 
                 <div class="step-indicator" data-step="2">
@@ -519,11 +519,6 @@
                 <div class="step-indicator" data-step="3">
                     <div class="step-circle">3</div>
                     <div>Review Strategy</div>
-                </div>
-
-                <div class="step-indicator" data-step="4">
-                    <div class="step-circle">4</div>
-                    <div>Peer Review</div>
                 </div>
             </div>
 
@@ -540,7 +535,7 @@
                 <!-- Step 1: Upload & Configure -->
                 <div id="step1" class="fade-in">
                     <h2 class="text-3xl font-bold text-gray-900 mb-2">Create QA Strategy</h2>
-                    <p class="text-gray-600 mb-8">Paste your PRD and configure project parameters to generate a comprehensive quality assurance strategy.</p>
+                    <p class="text-gray-600 mb-8">Paste your PRD or a GitHub link and Qarabiner will generate a comprehensive, standards-compliant test strategy.</p>
 
                     <div id="error-message" class="hidden"></div>
 
@@ -555,77 +550,8 @@
                                 <p class="text-gray-600 text-sm font-medium mb-1">Drop your .txt or .md file here, or paste PRD text below</p>
                                 <p class="text-gray-400 text-xs">Max file size: 10MB</p>
                             </div>
-                            <textarea id="prdText" class="form-textarea mt-3" placeholder="Paste your PRD content here..."></textarea>
-                        </div>
-
-                        <!-- Domain Selection -->
-                        <div class="grid grid-cols-2 gap-6">
-                            <div class="form-group">
-                                <label class="form-label">Domain</label>
-                                <select id="domain" class="form-select" required>
-                                    <option value="">Select a domain...</option>
-                                    <option value="general_software">General Software</option>
-                                    <option value="medical_device">Medical Device</option>
-                                    <option value="automotive">Automotive</option>
-                                    <option value="aerospace">Aerospace</option>
-                                    <option value="financial">Financial Services</option>
-                                    <option value="embedded_iot">Embedded/IoT</option>
-                                    <option value="telecom">Telecommunications</option>
-                                    <option value="railway">Railway Systems</option>
-                                    <option value="nuclear">Nuclear Power</option>
-                                    <option value="gaming_gambling">Gaming & Gambling</option>
-                                    <option value="government">Government</option>
-                                </select>
-                            </div>
-
-                            <div class="form-group">
-                                <label class="form-label">Safety Level</label>
-                                <select id="safetyLevel" class="form-select" required>
-                                    <option value="">Select safety level...</option>
-                                    <option value="none">None</option>
-                                    <option value="low">Low</option>
-                                    <option value="medium">Medium</option>
-                                    <option value="high">High</option>
-                                    <option value="critical">Critical</option>
-                                    <optgroup label="ASIL Levels">
-                                        <option value="asil_a">ASIL A</option>
-                                        <option value="asil_b">ASIL B</option>
-                                        <option value="asil_c">ASIL C</option>
-                                        <option value="asil_d">ASIL D</option>
-                                    </optgroup>
-                                    <optgroup label="SIL Levels">
-                                        <option value="sil_1">SIL 1</option>
-                                        <option value="sil_2">SIL 2</option>
-                                        <option value="sil_3">SIL 3</option>
-                                        <option value="sil_4">SIL 4</option>
-                                    </optgroup>
-                                    <optgroup label="DAL Levels">
-                                        <option value="dal_a">DAL A</option>
-                                        <option value="dal_b">DAL B</option>
-                                        <option value="dal_c">DAL C</option>
-                                        <option value="dal_d">DAL D</option>
-                                        <option value="dal_e">DAL E</option>
-                                    </optgroup>
-                                </select>
-                            </div>
-                        </div>
-
-                        <!-- Regulatory Frameworks -->
-                        <div class="form-group">
-                            <label class="form-label">Regulatory Frameworks (comma-separated)</label>
-                            <input type="text" id="regulatoryFrameworks" class="form-input" placeholder="e.g., ISO 26262, IEC 61508, DO-178C">
-                        </div>
-
-                        <!-- Deployment Environment -->
-                        <div class="form-group">
-                            <label class="form-label">Deployment Environment</label>
-                            <select id="deploymentEnv" class="form-select" required>
-                                <option value="">Select environment...</option>
-                                <option value="cloud">Cloud</option>
-                                <option value="on-premise">On-Premise</option>
-                                <option value="hybrid">Hybrid</option>
-                                <option value="edge">Edge Computing</option>
-                            </select>
+                            <textarea id="prdText" class="form-textarea mt-3" placeholder="Paste your PRD text or a GitHub URL (e.g., github.com/org/repo/blob/main/PRD.md)..."></textarea>
+                            <p class="text-gray-400 text-xs mt-1">Domain, safety level, and regulatory frameworks are automatically inferred from your PRD.</p>
                         </div>
 
                         <!-- Submit Button -->
@@ -665,45 +591,13 @@
 
                     <div id="strategyContent" class="bg-white rounded-lg border border-gray-200 p-8 mb-6 markdown-content"></div>
 
-                    <div class="grid grid-cols-3 gap-4">
-                        <button class="btn-primary" id="peerReviewBtn">Request Peer Review</button>
-                        <button class="btn-secondary" id="exportBtn">Export as Markdown</button>
+                    <div class="grid grid-cols-2 gap-4">
+                        <button class="btn-primary" id="exportBtn">Export as Markdown</button>
                         <button class="btn-secondary" id="startNewBtn">Start New</button>
                     </div>
                 </div>
 
-                <!-- Step 4: Peer Review Panel -->
-                <div id="step4" class="hidden fade-in">
-                    <h2 class="text-3xl font-bold text-gray-900 mb-8">Peer Review Results</h2>
-
-                    <div class="grid grid-cols-2 gap-8 mb-8">
-                        <div class="flex flex-col items-center justify-center">
-                            <div class="score-display" id="overallScore"></div>
-                            <div class="score-label">Overall Grade</div>
-                        </div>
-
-                        <div>
-                            <h3 class="text-lg font-bold text-gray-900 mb-4">Dimension Scores</h3>
-                            <div id="dimensionScores"></div>
-                        </div>
-                    </div>
-
-                    <div class="grid grid-cols-2 gap-8">
-                        <div>
-                            <h3 class="text-lg font-bold text-gray-900 mb-4">Strengths</h3>
-                            <div id="strengthsList"></div>
-                        </div>
-
-                        <div>
-                            <h3 class="text-lg font-bold text-gray-900 mb-4">Areas for Improvement</h3>
-                            <div id="weaknessList"></div>
-                        </div>
-                    </div>
-
-                    <div class="pt-8">
-                        <button class="btn-secondary" id="startNewBtn2">Start New</button>
-                    </div>
-                </div>
+                <!-- Step 4 (Peer Review) removed — Critic agent handles validation internally -->
             </div>
         </div>
     </div>
@@ -760,10 +654,8 @@
             // Form submission
             document.getElementById('configForm').addEventListener('submit', handleGenerateStrategy);
             document.getElementById('answerForm').addEventListener('submit', handleSubmitAnswers);
-            document.getElementById('peerReviewBtn').addEventListener('click', handlePeerReview);
             document.getElementById('exportBtn').addEventListener('click', handleExport);
             document.getElementById('startNewBtn').addEventListener('click', resetApp);
-            document.getElementById('startNewBtn2').addEventListener('click', resetApp);
 
             // Step indicators
             document.querySelectorAll('.step-indicator').forEach(indicator => {
@@ -795,33 +687,19 @@
             clearError();
 
             const prdText = document.getElementById('prdText').value.trim();
-            const domain = document.getElementById('domain').value;
-            const safetyLevel = document.getElementById('safetyLevel').value;
-            const regulatoryFrameworks = document.getElementById('regulatoryFrameworks').value;
-            const deploymentEnv = document.getElementById('deploymentEnv').value;
 
             if (!prdText) {
                 showError('Please enter or upload a PRD.');
                 return;
             }
-            if (!domain || !safetyLevel || !deploymentEnv) {
-                showError('Please fill in all required fields.');
-                return;
-            }
 
             appState.prdText = prdText;
             appState.config = {
-                prd_text: prdText,
-                domain,
-                safety_level: safetyLevel,
-                regulatory_frameworks: regulatoryFrameworks
-                    ? regulatoryFrameworks.split(',').map(s => s.trim()).filter(Boolean)
-                    : [],
-                deployment_environment: deploymentEnv
+                prd_text: prdText
             };
 
             setLoadingState(true);
-            showProgressContainer();
+            showProgressContainer('generate');
 
             try {
                 const response = await fetch(`${API_BASE}/strategy/generate`, {
@@ -873,7 +751,7 @@
             document.getElementById('answerOverlay').classList.remove('hidden');
             document.getElementById('submitAnswersBtn').disabled = true;
             document.getElementById('submitAnswersBtnText').innerHTML = '<span class="spinner" style="width:1rem;height:1rem;display:inline-block;vertical-align:middle;margin-right:0.5rem;"></span> Generating...';
-            showProgressContainer();
+            showProgressContainer('answer');
 
             try {
                 const response = await fetch(`${API_BASE}/strategy/answer`, {
@@ -905,32 +783,6 @@
                 document.getElementById('submitAnswersBtnText').textContent = 'Submit Answers';
                 hideProgressContainer();
                 showError(`Failed to submit answers: ${error.message}`);
-            }
-        }
-
-        async function handlePeerReview() {
-            setLoadingState(true);
-
-            try {
-                const response = await fetch(`${API_BASE}/strategy/review`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        session_id: appState.sessionId
-                    })
-                });
-
-                if (!response.ok) {
-                    throw new Error(`API error: ${response.statusText}`);
-                }
-
-                const data = await response.json();
-                displayPeerReview(data);
-                setLoadingState(false);
-                navigateToStep(4);
-            } catch (error) {
-                setLoadingState(false);
-                showError(`Failed to request peer review: ${error.message}`);
             }
         }
 
@@ -1022,52 +874,6 @@
             }
         }
 
-        function displayPeerReview(reviewData) {
-            // Overall score
-            const scoreDisplay = document.getElementById('overallScore');
-            const grade = reviewData.overall_grade || 'A';
-            scoreDisplay.textContent = grade;
-
-            // Dimension scores
-            const dimensionScores = document.getElementById('dimensionScores');
-            dimensionScores.innerHTML = '';
-            if (reviewData.dimension_scores) {
-                Object.entries(reviewData.dimension_scores).forEach(([dimension, score]) => {
-                    const div = document.createElement('div');
-                    div.className = 'dimension-score';
-                    div.innerHTML = `
-                        <span class="dimension-score-name">${dimension}</span>
-                        <span class="dimension-score-value">${score}%</span>
-                    `;
-                    dimensionScores.appendChild(div);
-                });
-            }
-
-            // Strengths
-            const strengthsList = document.getElementById('strengthsList');
-            strengthsList.innerHTML = '';
-            if (reviewData.strengths) {
-                reviewData.strengths.forEach(strength => {
-                    const div = document.createElement('div');
-                    div.className = 'strength-item';
-                    div.textContent = strength;
-                    strengthsList.appendChild(div);
-                });
-            }
-
-            // Weaknesses
-            const weaknessList = document.getElementById('weaknessList');
-            weaknessList.innerHTML = '';
-            if (reviewData.weaknesses) {
-                reviewData.weaknesses.forEach(weakness => {
-                    const div = document.createElement('div');
-                    div.className = 'weakness-item';
-                    div.textContent = weakness;
-                    weaknessList.appendChild(div);
-                });
-            }
-        }
-
         function navigateToStep(step) {
             // Update UI
             document.querySelectorAll('[id^="step"]').forEach(el => {
@@ -1093,24 +899,28 @@
             appState.currentStep = step;
         }
 
-        function showProgressContainer() {
+        function showProgressContainer(phase) {
             const container = document.getElementById('progress-container');
             container.classList.remove('hidden');
+
+            // Different step labels depending on which phase we're in
+            const steps = phase === 'answer'
+                ? ['Incorporating answers', 'Refining strategy', 'Generating strategy', 'Validating citations']
+                : ['Profiling system', 'Researching standards', 'Generating strategy', 'Validating citations'];
 
             const stepsContainer = document.getElementById('progress-steps');
             stepsContainer.innerHTML = `
                 <div class="progress-step active">
                     <span class="spinner" style="margin-right: 0.5rem;"></span>
-                    Profiling
+                    ${steps[0]}
                 </div>
-                <div class="progress-step">Researching</div>
-                <div class="progress-step">Generating</div>
-                <div class="progress-step">Validating</div>
+                <div class="progress-step">${steps[1]}</div>
+                <div class="progress-step">${steps[2]}</div>
+                <div class="progress-step">${steps[3]}</div>
             `;
 
             // Simulate progress
             let currentStep = 0;
-            const steps = ['Profiling', 'Researching', 'Generating', 'Validating'];
             const interval = setInterval(() => {
                 if (currentStep < steps.length - 1) {
                     const stepElements = document.querySelectorAll('.progress-step');

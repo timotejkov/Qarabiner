@@ -1,8 +1,8 @@
 """
 Agent 2: Researcher — Retrieves relevant standards based on system profile.
 
-Uses the StandardsLibrary (keyword-based for prototype) to find
-applicable standard sections. In production, this would query a Vector DB.
+Uses the StandardsLibrary with hybrid retrieval: semantic search via
+ChromaDB (when available) with keyword matching as fallback.
 """
 
 import logging
@@ -88,14 +88,35 @@ class ResearcherAgent(AgentBase):
         logger.info(f"[Researcher] Search keywords: {keywords}")
         logger.info(f"[Researcher] Required families: {families}")
 
-        # Query the standards library
-        sections = self._library.retrieve(
+        # Build a semantic search query from the profile summary + keywords
+        semantic_query = (
+            f"{profile.summary} "
+            f"Domain: {domain_config.domain.value}. "
+            f"Key areas: {', '.join(keywords[:10])}."
+        )
+
+        # Try semantic search first, fall back to keyword search
+        sections = self._library.retrieve_semantic(
+            query=semantic_query,
             domains=[domain_config.domain],
-            keywords=keywords,
             max_results=25,
         )
 
-        logger.info(f"[Researcher] Retrieved {len(sections)} standard sections")
+        # If semantic returned few results, supplement with keyword search
+        if len(sections) < 10:
+            keyword_sections = self._library.retrieve(
+                domains=[domain_config.domain],
+                keywords=keywords,
+                max_results=25 - len(sections),
+            )
+            # Merge without duplicates
+            seen_keys = {(s.standard_id, s.section_key) for s in sections}
+            for ks in keyword_sections:
+                if (ks.standard_id, ks.section_key) not in seen_keys:
+                    sections.append(ks)
+                    seen_keys.add((ks.standard_id, ks.section_key))
+
+        logger.info(f"[Researcher] Retrieved {len(sections)} standard sections (semantic+keyword)")
 
         return RetrievedStandards(
             sections=sections,

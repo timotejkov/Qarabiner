@@ -17,7 +17,6 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from src.agents.orchestrator import PipelineOrchestrator
-from src.agents.reviewer import ReviewerAgent
 from src.models.domain_config import DomainConfig, IndustryDomain, SafetyLevel
 from src.models.session import Session, SessionStore
 from src.models.strategy import QuestionsResponse, StrategyResponse
@@ -68,30 +67,35 @@ app.add_middleware(
 library = StandardsLibrary()
 pipeline = PipelineOrchestrator(library)
 sessions = SessionStore()
-reviewer = ReviewerAgent()
 
 
 # --- Request/Response models ---
 
 class GenerateRequest(BaseModel):
-    """Request to generate a test strategy from a PRD."""
+    """Request to generate a test strategy from a PRD.
+
+    Only prd_text is required. All other fields are optional — the Profiler
+    agent infers domain, safety level, deployment environment, and regulatory
+    frameworks directly from the PRD content. User-provided values act as
+    overrides.
+    """
     prd_text: str = Field(
         ...,
         min_length=10,
-        description="The Product Requirements Document or system description text.",
+        description="The Product Requirements Document, system description text, or a GitHub URL.",
         json_schema_extra={"example": "A Node.js REST API backend with React frontend handling user authentication..."},
     )
-    domain: IndustryDomain = Field(
-        default=IndustryDomain.GENERAL_SOFTWARE,
-        description="Industry domain of the product under test.",
+    domain: IndustryDomain | None = Field(
+        default=None,
+        description="Optional industry domain override. If omitted, inferred from PRD.",
     )
-    safety_level: SafetyLevel = Field(
-        default=SafetyLevel.NONE,
-        description="Applicable safety integrity level.",
+    safety_level: SafetyLevel | None = Field(
+        default=None,
+        description="Optional safety level override. If omitted, inferred from PRD.",
     )
     regulatory_frameworks: list[str] = Field(
         default_factory=list,
-        description="Specific regulatory frameworks (e.g., ['HIPAA', 'GDPR']).",
+        description="Optional regulatory frameworks override (e.g., ['HIPAA', 'GDPR']).",
     )
     deployment_jurisdictions: list[str] = Field(
         default_factory=list,
@@ -101,9 +105,9 @@ class GenerateRequest(BaseModel):
         default=None,
         description="Hardware constraints for embedded systems.",
     )
-    deployment_environment: str = Field(
-        default="cloud",
-        description="Deployment type: cloud, on-premise, hybrid, edge.",
+    deployment_environment: str | None = Field(
+        default=None,
+        description="Optional deployment type override: cloud, on-premise, hybrid, edge.",
     )
 
 
@@ -125,20 +129,6 @@ class GenerateResponse(BaseModel):
     strategy_markdown: str | None = Field(default=None, description="Generated test strategy in Markdown.")
     validation: dict[str, Any] | None = Field(default=None, description="Critic validation result.")
     profile_summary: str | None = Field(default=None, description="Brief system profile summary.")
-
-
-class ReviewRequest(BaseModel):
-    """Request a peer review of a generated strategy."""
-    session_id: str = Field(..., description="Session ID of a completed strategy.")
-
-
-class ReviewResponse(BaseModel):
-    """Peer review result."""
-    overall_grade: int = Field(description="Overall quality grade (1-10).")
-    dimensions: dict[str, Any] = Field(description="Per-dimension grades and justifications.")
-    summary: str = Field(description="Review summary.")
-    strengths: list[str] = Field(description="Identified strengths.")
-    weaknesses: list[str] = Field(description="Identified weaknesses.")
 
 
 class ExportResponse(BaseModel):
@@ -200,16 +190,28 @@ async def generate_strategy(request: GenerateRequest) -> GenerateResponse:
     """
     prd_text = parse_text(request.prd_text)
 
-    domain_config = DomainConfig(
-        domain=request.domain,
-        safety_level=request.safety_level,
-        regulatory_frameworks=request.regulatory_frameworks,
-        deployment_jurisdictions=request.deployment_jurisdictions,
-        hardware_constraints=request.hardware_constraints,
-        deployment_environment=request.deployment_environment,
+    # Build DomainConfig only if user provided explicit overrides
+    has_user_config = (
+        request.domain is not None
+        or request.safety_level is not None
+        or request.deployment_environment is not None
+        or len(request.regulatory_frameworks) > 0
     )
 
-    session = sessions.create(prd_text, domain_config)
+    if has_user_config:
+        domain_config = DomainConfig(
+            domain=request.domain or IndustryDomain.GENERAL_SOFTWARE,
+            safety_level=request.safety_level or SafetyLevel.NONE,
+            regulatory_frameworks=request.regulatory_frameworks,
+            deployment_jurisdictions=request.deployment_jurisdictions,
+            hardware_constraints=request.hardware_constraints,
+            deployment_environment=request.deployment_environment or "cloud",
+        )
+    else:
+        # Let the Profiler infer everything from the PRD
+        domain_config = None
+
+    session = sessions.create(prd_text, domain_config or DomainConfig())
 
     try:
         result, validation, profile, standards = pipeline.generate(
@@ -299,34 +301,6 @@ async def answer_questions(request: AnswerRequest) -> GenerateResponse:
         sessions.update(session)
         logger.error(f"Pipeline error: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"Pipeline error: {str(e)}")
-
-
-@app.post("/api/strategy/review", response_model=ReviewResponse, tags=["Review"])
-async def review_strategy(request: ReviewRequest) -> ReviewResponse:
-    """
-    Peer-review a generated strategy across 5 quality dimensions.
-
-    Requires a session with a completed strategy.
-    """
-    session = sessions.get(request.session_id)
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
-    if not session.result or not isinstance(session.result, StrategyResponse):
-        raise HTTPException(status_code=400, detail="No strategy available for review")
-
-    review = reviewer.process(
-        prd_text=session.prd_text,
-        domain_config=session.domain_config,
-        strategy_markdown=session.result.strategy_markdown,
-    )
-
-    return ReviewResponse(
-        overall_grade=review.get("overall_grade", 0),
-        dimensions=review.get("dimensions", {}),
-        summary=review.get("summary", ""),
-        strengths=review.get("strengths", []),
-        weaknesses=review.get("weaknesses", []),
-    )
 
 
 @app.get("/api/strategy/export/{session_id}", response_model=ExportResponse, tags=["Export"])
