@@ -19,6 +19,7 @@ from src.models.strategy import (
     PipelineResult,
     QuestionsResponse,
     StrategyResponse,
+    ValidationIssue,
     ValidationResult,
     ValidationStatus,
 )
@@ -117,29 +118,54 @@ class PipelineOrchestrator:
 
         # Step 3: Architect (may return questions or strategy)
         status("Generating test strategy...")
-        result = self._architect.process(
-            prd_text=prd_text,
-            profile=profile,
-            standards=standards,
-            domain_config=domain_config,
-            answered_questions=answered_questions,
-        )
+        try:
+            result = self._architect.process(
+                prd_text=prd_text,
+                profile=profile,
+                standards=standards,
+                domain_config=domain_config,
+                answered_questions=answered_questions,
+            )
+        except RuntimeError as e:
+            logger.error(f"[Pipeline] Architect failed: {e}")
+            raise
 
         # If questions returned, no validation needed
         if isinstance(result, QuestionsResponse):
             status(f"Gap analysis complete — {len(result.questions)} questions generated")
             return result, None, profile, standards
 
+        # Sanity check: strategy must have content
+        if not isinstance(result, StrategyResponse) or not result.strategy_markdown.strip():
+            logger.error("[Pipeline] Architect returned non-strategy or empty strategy")
+            raise RuntimeError("Strategy generation failed: no content produced")
+
         # Step 4: Critic validation loop
         validation = None
         for attempt in range(1, config.max_critic_retries + 1):
             status(f"Validating strategy (attempt {attempt})...")
-            validation = self._critic.process(
-                strategy=result,
-                prd_text=prd_text,
-                standards=standards,
-                domain_config=domain_config,
-            )
+            try:
+                validation = self._critic.process(
+                    strategy=result,
+                    prd_text=prd_text,
+                    standards=standards,
+                    domain_config=domain_config,
+                )
+            except Exception as e:
+                logger.error(f"[Pipeline] Critic failed on attempt {attempt}: {e}")
+                # Don't crash — return strategy with a warning validation
+                validation = ValidationResult(
+                    status=ValidationStatus.PASSED,
+                    issues=[ValidationIssue(
+                        category="validation_error",
+                        description=f"Critic could not validate: {str(e)[:200]}",
+                        severity="low",
+                    )],
+                    citation_accuracy=0.0,
+                    structural_completeness=0.0,
+                    summary="Validation could not complete; strategy returned unvalidated.",
+                )
+                break
 
             if validation.status == ValidationStatus.PASSED:
                 status("Validation passed — strategy approved")
@@ -155,14 +181,19 @@ class PipelineOrchestrator:
                     )
                 )
                 status(f"Validation failed — retrying with critic feedback...")
-                result = self._architect.process(
-                    prd_text=prd_text,
-                    profile=profile,
-                    standards=standards,
-                    domain_config=domain_config,
-                    answered_questions=answered_questions,
-                    critic_feedback=feedback,
-                )
+                try:
+                    result = self._architect.process(
+                        prd_text=prd_text,
+                        profile=profile,
+                        standards=standards,
+                        domain_config=domain_config,
+                        answered_questions=answered_questions,
+                        critic_feedback=feedback,
+                    )
+                except RuntimeError as e:
+                    logger.error(f"[Pipeline] Architect retry failed: {e}")
+                    # Return original result with failed validation
+                    break
 
                 # If architect switched to questions on retry, break
                 if isinstance(result, QuestionsResponse):

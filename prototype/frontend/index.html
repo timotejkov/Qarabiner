@@ -709,7 +709,12 @@
                 });
 
                 if (!response.ok) {
-                    throw new Error(`API error: ${response.statusText}`);
+                    let errorMsg = `Server error (${response.status})`;
+                    try {
+                        const errData = await response.json();
+                        errorMsg = errData.detail || errorMsg;
+                    } catch (_) {}
+                    throw new Error(errorMsg);
                 }
 
                 const data = await response.json();
@@ -719,14 +724,20 @@
                 setLoadingState(false);
                 hideProgressContainer();
 
+                if (data.status === 'error') {
+                    throw new Error(data.error || 'The pipeline could not produce a valid strategy. This can happen when the LLM response is truncated or malformed. Please try again.');
+                }
+
                 if (appState.questions.length > 0) {
                     displayQuestions();
                     navigateToStep(2);
-                } else {
+                } else if (data.strategy_markdown && data.strategy_markdown.trim().length >= 50) {
                     appState.strategy = data.strategy_markdown;
                     appState.validation = data.validation;
                     displayStrategy();
                     navigateToStep(3);
+                } else {
+                    throw new Error('The pipeline returned an empty or incomplete strategy. Please try again with a more detailed PRD.');
                 }
             } catch (error) {
                 setLoadingState(false);
@@ -764,17 +775,34 @@
                 });
 
                 if (!response.ok) {
-                    throw new Error(`API error: ${response.statusText}`);
+                    let errorMsg = `Server error (${response.status})`;
+                    try {
+                        const errData = await response.json();
+                        errorMsg = errData.detail || errorMsg;
+                    } catch (_) {}
+                    throw new Error(errorMsg);
                 }
 
                 const data = await response.json();
-                appState.strategy = data.strategy_markdown;
-                appState.validation = data.validation;
+
+                if (data.status === 'error') {
+                    throw new Error(data.error || 'Pipeline returned an error. Please try again.');
+                }
 
                 document.getElementById('answerOverlay').classList.add('hidden');
                 document.getElementById('submitAnswersBtn').disabled = false;
                 document.getElementById('submitAnswersBtnText').textContent = 'Submit Answers';
                 hideProgressContainer();
+
+                // Check if more questions were returned
+                if (data.status === 'questions' && data.questions && data.questions.length > 0) {
+                    appState.questions = data.questions;
+                    displayQuestions();
+                    return;
+                }
+
+                appState.strategy = data.strategy_markdown || '';
+                appState.validation = data.validation;
                 displayStrategy();
                 navigateToStep(3);
             } catch (error) {
@@ -790,10 +818,21 @@
             try {
                 const response = await fetch(`${API_BASE}/strategy/export/${appState.sessionId}`);
                 if (!response.ok) {
-                    throw new Error('Failed to export strategy');
+                    let errorMsg = 'Failed to export strategy';
+                    try {
+                        const errData = await response.json();
+                        errorMsg = errData.detail || errorMsg;
+                    } catch (_) {}
+                    throw new Error(errorMsg);
                 }
 
-                const blob = await response.blob();
+                const data = await response.json();
+                const mdText = data.markdown || appState.strategy || '';
+                if (!mdText) {
+                    throw new Error('No strategy content available to export');
+                }
+
+                const blob = new Blob([mdText], { type: 'text/markdown' });
                 const url = window.URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
@@ -823,7 +862,7 @@
                 // Create reference label (safe - textContent only)
                 const refLabel = document.createElement('div');
                 refLabel.className = 'reference-label';
-                refLabel.textContent = question.standard_reference;
+                refLabel.textContent = question.standard || question.standard_reference || '';
                 card.appendChild(refLabel);
 
                 // Create example box if present (safe - textContent only)
@@ -849,28 +888,66 @@
         }
 
         function displayStrategy() {
-            if (!appState.strategy) return;
+            const strategyContent = document.getElementById('strategyContent');
+            const validationResult = document.getElementById('validationResult');
+
+            // Handle empty or missing strategy
+            if (!appState.strategy || appState.strategy.trim().length < 50) {
+                strategyContent.innerHTML = '';
+                const errorBox = document.createElement('div');
+                errorBox.className = 'error-message';
+                errorBox.textContent = 'The pipeline did not produce a valid strategy. This can happen if the LLM response was truncated or malformed. Please try again — if the issue persists, try simplifying or shortening your PRD.';
+                strategyContent.appendChild(errorBox);
+
+                const retryBtn = document.createElement('button');
+                retryBtn.className = 'btn-primary';
+                retryBtn.textContent = 'Try Again';
+                retryBtn.style.marginTop = '1rem';
+                retryBtn.addEventListener('click', resetApp);
+                strategyContent.appendChild(retryBtn);
+                return;
+            }
 
             // Render markdown content with DOMPurify sanitization
-            const strategyContent = document.getElementById('strategyContent');
             const rawHtml = marked.parse(appState.strategy);
             const cleanHtml = DOMPurify.sanitize(rawHtml);
             strategyContent.innerHTML = cleanHtml;
 
             // Display validation result if available
+            validationResult.innerHTML = '';
             if (appState.validation) {
-                const validationResult = document.getElementById('validationResult');
                 const v = appState.validation;
                 const passed = v.status === 'passed';
-                const citationPct = Math.round((v.citation_accuracy || 0) * 100);
+                const issueCount = v.issues ? v.issues.length : 0;
+
+                // Simple user-friendly badge
                 const badge = document.createElement('div');
                 badge.className = `validation-badge ${passed ? 'passed' : 'failed'}`;
-                const statusText = document.createTextNode(
-                    `${passed ? '✓ Validation Passed' : '✗ Validation Failed'} — ${citationPct}% Citation Accuracy, ${v.issues ? v.issues.length : 0} issues`
-                );
-                badge.appendChild(statusText);
-                validationResult.innerHTML = '';
+                badge.textContent = passed
+                    ? '✓ Quality Verified'
+                    : `Needs Review (${issueCount} ${issueCount === 1 ? 'suggestion' : 'suggestions'})`;
                 validationResult.appendChild(badge);
+
+                // If there are issues, show them as expandable details
+                if (issueCount > 0) {
+                    const details = document.createElement('details');
+                    details.style.cssText = 'margin-top: 0.5rem; font-size: 0.85rem; color: #6b7280;';
+                    const summary = document.createElement('summary');
+                    summary.style.cssText = 'cursor: pointer; color: #4b5563; font-weight: 500;';
+                    summary.textContent = 'View details';
+                    details.appendChild(summary);
+
+                    const list = document.createElement('ul');
+                    list.style.cssText = 'margin-top: 0.5rem; padding-left: 1.25rem; list-style: disc;';
+                    v.issues.forEach(issue => {
+                        const li = document.createElement('li');
+                        li.style.cssText = 'margin-bottom: 0.35rem;';
+                        li.textContent = issue.description;
+                        list.appendChild(li);
+                    });
+                    details.appendChild(list);
+                    validationResult.appendChild(details);
+                }
             }
         }
 

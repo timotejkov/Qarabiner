@@ -129,6 +129,7 @@ class GenerateResponse(BaseModel):
     strategy_markdown: str | None = Field(default=None, description="Generated test strategy in Markdown.")
     validation: dict[str, Any] | None = Field(default=None, description="Critic validation result.")
     profile_summary: str | None = Field(default=None, description="Brief system profile summary.")
+    error: str | None = Field(default=None, description="Error message if status is 'error'.")
 
 
 class ExportResponse(BaseModel):
@@ -233,6 +234,20 @@ async def generate_strategy(request: GenerateRequest) -> GenerateResponse:
                 profile_summary=profile.summary if profile else None,
             )
         else:
+            # Validate strategy content before returning
+            strategy_md = getattr(result, "strategy_markdown", "") or ""
+            if len(strategy_md.strip()) < 50:
+                logger.error(f"[API] Strategy too short ({len(strategy_md)} chars), returning error")
+                session.status = "error"
+                session.error_message = "Strategy generation produced empty or incomplete output"
+                sessions.update(session)
+                return GenerateResponse(
+                    session_id=session.id,
+                    status="error",
+                    strategy_markdown=None,
+                    profile_summary=profile.summary if profile else None,
+                )
+
             session.status = "complete"
             sessions.update(session)
             return GenerateResponse(
@@ -243,6 +258,8 @@ async def generate_strategy(request: GenerateRequest) -> GenerateResponse:
                 profile_summary=profile.summary if profile else None,
             )
 
+    except HTTPException:
+        raise
     except Exception as e:
         session.status = "error"
         session.error_message = str(e)
@@ -285,6 +302,20 @@ async def answer_questions(request: AnswerRequest) -> GenerateResponse:
                 profile_summary=profile.summary if profile else None,
             )
         else:
+            # Validate strategy content before returning
+            strategy_md = getattr(result, "strategy_markdown", "") or ""
+            if len(strategy_md.strip()) < 50:
+                logger.error(f"[API] Answer phase: strategy too short ({len(strategy_md)} chars)")
+                session.status = "error"
+                session.error_message = "Strategy generation produced empty or incomplete output"
+                sessions.update(session)
+                return GenerateResponse(
+                    session_id=session.id,
+                    status="error",
+                    strategy_markdown=None,
+                    profile_summary=profile.summary if profile else None,
+                )
+
             session.status = "complete"
             sessions.update(session)
             return GenerateResponse(
@@ -295,6 +326,8 @@ async def answer_questions(request: AnswerRequest) -> GenerateResponse:
                 profile_summary=profile.summary if profile else None,
             )
 
+    except HTTPException:
+        raise
     except Exception as e:
         session.status = "error"
         session.error_message = str(e)
@@ -310,6 +343,10 @@ async def export_strategy(session_id: str) -> ExportResponse:
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     if not session.result or not isinstance(session.result, StrategyResponse):
-        raise HTTPException(status_code=400, detail="No strategy available for export")
+        raise HTTPException(status_code=400, detail="No strategy available for export. The session may still be in the questions phase.")
 
-    return ExportResponse(markdown=session.result.strategy_markdown)
+    strategy_md = session.result.strategy_markdown or ""
+    if len(strategy_md.strip()) < 50:
+        raise HTTPException(status_code=400, detail="Strategy content is empty or incomplete. Please regenerate.")
+
+    return ExportResponse(markdown=strategy_md)

@@ -107,19 +107,46 @@ class ArchitectAgent(AgentBase):
         user_message = "\n".join(parts)
 
         # Call LLM and parse response
-        result_data = self._call_llm_json(user_message, temperature=0.3)
+        try:
+            result_data = self._call_llm_json(user_message, temperature=0.3)
+        except Exception as e:
+            logger.error(f"[Architect] LLM call failed: {e}")
+            raise RuntimeError(f"Architect agent failed to generate output: {e}") from e
+
+        if not isinstance(result_data, dict):
+            logger.error(f"[Architect] LLM returned non-dict: {type(result_data)}")
+            raise RuntimeError("Architect returned invalid response format")
 
         if result_data.get("response_type") == "questions":
-            questions = [
-                ClarifyingQuestion(**q) for q in result_data.get("questions", [])
-            ]
+            questions_raw = result_data.get("questions", [])
+            if not questions_raw:
+                logger.warning("[Architect] Questions response with empty questions list")
+                raise RuntimeError("Architect returned questions response but no questions were generated")
+            questions = []
+            for q in questions_raw:
+                try:
+                    questions.append(ClarifyingQuestion(**q))
+                except Exception as e:
+                    logger.warning(f"[Architect] Skipping malformed question: {e}")
+            if not questions:
+                raise RuntimeError("Architect returned questions but all were malformed")
             return QuestionsResponse(
                 questions=questions,
                 gaps_summary=result_data.get("gaps_summary", ""),
             )
         else:
+            strategy_md = result_data.get("strategy_markdown", "")
+            if not strategy_md or len(strategy_md.strip()) < 50:
+                logger.error(
+                    f"[Architect] Strategy markdown is empty or too short "
+                    f"({len(strategy_md)} chars). Keys in response: {list(result_data.keys())}"
+                )
+                raise RuntimeError(
+                    "Architect generated an empty or near-empty strategy. "
+                    "This usually means the LLM response was truncated or malformed."
+                )
             return StrategyResponse(
-                strategy_markdown=result_data.get("strategy_markdown", ""),
+                strategy_markdown=strategy_md,
                 standards_cited=result_data.get("standards_cited", []),
                 domain_sections_included=result_data.get("domain_sections_included", []),
             )

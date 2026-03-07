@@ -108,10 +108,12 @@ Critical-risk items first, low-risk items last.
 TONE: Objective, technical, declarative. No conversational filler, hedging, or
 subjective qualifiers ("might," "could potentially," "it would be advisable to").
 
-CONCISENESS: Target approximately 8,000 output tokens. Be dense and avoid repetition.
-Use tables for risk matrices and coverage mappings instead of verbose prose.
-Combine related test objectives into single bullet points rather than listing separately.
-Do not repeat the PRD back — reference features by name only.
+CONCISENESS: Target approximately 5,000 output tokens for the strategy_markdown.
+The total JSON response (including wrapper keys) must stay under 7,500 tokens.
+Be dense and avoid repetition. Use tables for risk matrices and coverage mappings
+instead of verbose prose. Combine related test objectives into single bullet points
+rather than listing separately. Do not repeat the PRD back — reference features by name only.
+Keep standards_cited to a flat list of short standard IDs (e.g., "ISO 29119-2 §5.3").
 </constraints>
 
 <output_instructions>
@@ -132,14 +134,15 @@ Output ONLY a JSON object:
 }
 
 FORMAT 2 — STRATEGY (when context is sufficient):
-Output ONLY a JSON object:
+Output ONLY a JSON object with keys in THIS EXACT ORDER:
 {
   "response_type": "strategy",
-  "strategy_markdown": "The full test strategy in Markdown (see output_template for structure)",
   "standards_cited": ["List of all standards cited in the strategy"],
-  "domain_sections_included": ["List of domain-specific sections added"]
+  "domain_sections_included": ["List of domain-specific sections added"],
+  "strategy_markdown": "The full test strategy in Markdown (see output_template for structure)"
 }
 
+IMPORTANT: "strategy_markdown" MUST be the LAST key in the JSON object.
 The strategy_markdown MUST follow the structure in <output_template>.
 </output_instructions>
 """

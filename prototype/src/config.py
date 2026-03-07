@@ -33,7 +33,7 @@ class AppConfig:
         "ANTHROPIC_API_KEY", ""))
     llm: LLMConfig = field(default_factory=LLMConfig)
     max_critic_retries: int = 2
-    max_tokens_strategy: int = 16384
+    max_tokens_strategy: int = 8192
     max_tokens_profile: int = 2048
     max_tokens_questions: int = 2048
     server_host: str = "0.0.0.0"

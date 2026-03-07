@@ -109,10 +109,17 @@ class AgentBase(ABC):
 
                 text = data["content"][0]["text"]
                 usage = data.get("usage", {})
+                stop_reason = data.get("stop_reason", "unknown")
                 logger.info(
                     f"[{self.__class__.__name__}] Response: {len(text)} chars, "
+                    f"stop_reason={stop_reason}, "
                     f"usage: {usage.get('input_tokens', '?')}in/{usage.get('output_tokens', '?')}out"
                 )
+                if stop_reason == "max_tokens":
+                    logger.warning(
+                        f"[{self.__class__.__name__}] Response truncated at max_tokens "
+                        f"({self.max_tokens}). Output may be incomplete."
+                    )
                 return text
 
             except urllib.error.HTTPError as e:
@@ -192,16 +199,44 @@ class AgentBase(ABC):
                 rest = cleaned[idx:].lstrip().lstrip(":")
                 rest = rest.lstrip()
                 if rest.startswith('"'):
-                    md_content = rest[1:]  # skip opening quote
-                    md_content = md_content.replace('\\"', '"').replace("\\n", "\n").replace("\\t", "\t")
-                    logger.info(f"[{self.__class__.__name__}] Recovered {len(md_content)} chars of strategy markdown")
-                    return {
-                        "response_type": "strategy",
-                        "strategy_markdown": md_content,
-                        "standards_cited": [],
-                        "domain_sections_included": [],
-                        "_truncation_recovered": True,
-                    }
+                    # Find the end of the JSON string value properly.
+                    # Walk character by character looking for unescaped closing quote.
+                    md_raw = rest[1:]  # skip opening quote
+                    end_pos = None
+                    i = 0
+                    while i < len(md_raw):
+                        if md_raw[i] == '\\':
+                            i += 2  # skip escaped character
+                            continue
+                        if md_raw[i] == '"':
+                            end_pos = i
+                            break
+                        i += 1
+
+                    if end_pos is not None:
+                        # Properly closed string — extract just the value
+                        md_content = md_raw[:end_pos]
+                    else:
+                        # Truncated mid-string — take everything we have
+                        md_content = md_raw
+                        # Strip trailing incomplete escape sequences
+                        if md_content.endswith('\\'):
+                            md_content = md_content[:-1]
+
+                    # Unescape JSON string escapes
+                    md_content = md_content.replace('\\"', '"').replace("\\n", "\n").replace("\\t", "\t").replace("\\\\", "\\")
+
+                    if len(md_content.strip()) >= 50:
+                        logger.info(f"[{self.__class__.__name__}] Recovered {len(md_content)} chars of strategy markdown")
+                        return {
+                            "response_type": "strategy",
+                            "strategy_markdown": md_content,
+                            "standards_cited": [],
+                            "domain_sections_included": [],
+                            "_truncation_recovered": True,
+                        }
+                    else:
+                        logger.warning(f"[{self.__class__.__name__}] Recovery 1 extracted only {len(md_content)} chars — too short, trying other recovery")
 
             # Recovery 2: Critic/validation response — try to fix truncated JSON
             if '"status"' in cleaned and ('"issues"' in cleaned or '"citation_accuracy"' in cleaned):
